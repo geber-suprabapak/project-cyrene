@@ -15,32 +15,25 @@ RUN bun install --frozen-lockfile
 
 # ================================
 # Stage 2: Production image
-FROM oven/bun:1-slim AS runner
+FROM oven/bun:1 AS runner
 WORKDIR /app
 
 # Set environment
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Create non-root user for security
-RUN addgroup --system --gid 1001 cyrene && \
-    adduser --system --uid 1001 cyrene
-
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 
 # Copy source code
-COPY --chown=cyrene:cyrene . .
-
-# Switch to non-root user
-USER cyrene
+COPY . .
 
 # Expose port
 EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
+    CMD bun -e "fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 # Start the application
 CMD ["bun", "run", "src/index.ts"]
