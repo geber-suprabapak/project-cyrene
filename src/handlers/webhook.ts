@@ -12,7 +12,9 @@ const WebhookSchema = t.Object({
 });
 
 async function notifyUser(userId: string, notification: NotificationPayload) {
+    console.log("Notify user:", { userId, title: notification.title, type: notification.data?.type });
     const tokens = await fetchTokens([userId]);
+    console.log("Notify tokens:", { userId, tokenCount: tokens.length });
     if (tokens.length > 0) await sendBatchNotifications(tokens, notification);
 }
 
@@ -45,6 +47,12 @@ async function handlePerizinan(type: string, record: any, oldRecord: any) {
 async function handleAbsences(type: string, record: any) {
     if (type !== "INSERT") return;
 
+    console.log("Absence insert:", {
+        id: record?.id,
+        userId: record?.user_id,
+        status: record?.status,
+    });
+
     const notifications: Record<string, NotificationPayload> = {
         Hadir: {
             title: "🌅 Absen Masuk Berhasil",
@@ -59,23 +67,38 @@ async function handleAbsences(type: string, record: any) {
     };
 
     const notification = notifications[record.status];
-    if (notification) await notifyUser(record.user_id, notification);
+    if (!notification) {
+        console.warn("Absence status not mapped to notification:", { status: record?.status });
+        return;
+    }
+
+    await notifyUser(record.user_id, notification);
 }
 
 export const webhookHandler = new Elysia({ name: "webhook" }).post(
     "/webhook",
     async ({ body, set }) => {
-        console.log(`Webhook: ${body.type} on ${body.table}`);
+        console.log("Webhook received:", {
+            type: body.type,
+            table: body.table,
+            schema: body.schema,
+        });
         try {
             switch (body.table) {
                 case "perizinan":
+                    console.log("Webhook dispatch: perizinan");
                     await handlePerizinan(body.type, body.record, body.old_record);
                     break;
                 case "absences":
+                    console.log("Webhook dispatch: absences");
                     await handleAbsences(body.type, body.record);
                     break;
                 case "jadwal_absensi":
+                    console.log("Webhook dispatch: jadwal_absensi");
                     await reloadSchedule();
+                    break;
+                default:
+                    console.warn("Webhook table not handled:", { table: body.table });
                     break;
             }
             return { success: true };

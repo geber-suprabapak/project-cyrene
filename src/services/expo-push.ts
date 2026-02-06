@@ -19,6 +19,7 @@ export async function sendBatchNotifications(
         to,
         ...payload,
         sound: "default" as const,
+        channelId: "skanida-default",
     }));
 
     const tickets: ExpoPushTicket[] = [];
