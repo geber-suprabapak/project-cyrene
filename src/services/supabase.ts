@@ -20,7 +20,7 @@ export async function fetchTokens(userIds?: string[]): Promise<string[]> {
         .select("notification_token")
         .not("notification_token", "is", null);
 
-    if (userIds) query = query.in("id", userIds);
+    if (userIds) query = query.in("user_id", userIds);
 
     const { data, error } = await query;
     if (error) {
@@ -30,7 +30,7 @@ export async function fetchTokens(userIds?: string[]): Promise<string[]> {
 
     return data
         .map((u) => u.notification_token)
-        .filter((t): t is string => t !== null);
+        .filter((t): t is string => t !== null && t.length > 0);
 }
 
 export async function getActiveSchedule(dayName: string): Promise<JadwalAbsensi | null> {
