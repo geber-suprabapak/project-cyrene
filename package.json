@@ -3,7 +3,11 @@
     "version": "1.0.0",
     "scripts": {
         "dev": "bun run --watch src/index.ts",
-        "start": "bun run src/index.ts"
+        "start": "bun run src/index.ts",
+        "docker:build": "docker compose build",
+        "docker:up": "docker compose up -d",
+        "docker:down": "docker compose down",
+        "docker:logs": "docker compose logs -f api"
     },
     "dependencies": {
         "elysia": "^1.2.0",

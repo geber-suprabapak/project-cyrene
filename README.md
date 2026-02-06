@@ -225,6 +225,40 @@ src/
 - `sendBatchNotifications(tokens, payload)` — otomatis filter token valid, chunk, dan kirim via Expo
 - Scheduler pakai config array `REMINDERS[]` — gampang ditambah/diubah reminder tanpa ubah logic
 
+## Docker Deployment
+
+```bash
+# Build dan jalankan
+bun run docker:build
+bun run docker:up
+
+# atau langsung
+docker compose up -d --build
+
+# Lihat logs
+bun run docker:logs
+
+# Stop
+bun run docker:down
+```
+
+### Docker Commands
+
+| Script | Perintah | Keterangan |
+|--------|----------|------------|
+| `bun run docker:build` | `docker compose build` | Build image |
+| `bun run docker:up` | `docker compose up -d` | Jalankan detached |
+| `bun run docker:down` | `docker compose down` | Stop containers |
+| `bun run docker:logs` | `docker compose logs -f api` | Stream logs |
+
+### Files
+
+| File | Keterangan |
+|------|------------|
+| `Dockerfile` | Multi-stage build (minimal image, non-root user) |
+| `docker-compose.yml` | Production compose config |
+| `.dockerignore` | Exclude files dari build context |
+
 ## Testing
 
 ### Health check
