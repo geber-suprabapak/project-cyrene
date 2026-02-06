@@ -1,15 +1,17 @@
 {
-  "name": "project-cyrene",
-  "version": "1.0.50",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "bun run --watch src/index.ts"
-  },
-  "dependencies": {
-    "elysia": "latest"
-  },
-  "devDependencies": {
-    "bun-types": "latest"
-  },
-  "module": "src/index.js"
+    "name": "cyrene-notification-api",
+    "version": "1.0.0",
+    "scripts": {
+        "dev": "bun run --watch src/index.ts",
+        "start": "bun run src/index.ts"
+    },
+    "dependencies": {
+        "elysia": "^1.2.0",
+        "expo-server-sdk": "^3.13.0",
+        "@supabase/supabase-js": "^2.49.0"
+    },
+    "devDependencies": {
+        "@types/bun": "latest",
+        "typescript": "^5.0.0"
+    }
 }

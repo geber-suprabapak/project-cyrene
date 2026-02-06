@@ -1,7 +1,16 @@
 import { Elysia } from "elysia";
+import { webhookHandler } from "./handlers/webhook";
+import { broadcastHandler } from "./handlers/broadcast";
+import { loadActiveSchedule } from "./services/scheduler";
 
-const app = new Elysia().get("/", () => "Hello Elysia").listen(3000);
+const PORT = process.env.PORT || 3000;
 
-console.log(
-  `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
-);
+new Elysia()
+    .get("/health", () => ({ status: "ok", timestamp: new Date().toISOString() }))
+    .use(webhookHandler)
+    .use(broadcastHandler)
+    .onStart(async () => {
+        console.log(`Cyrene API running on :${PORT}`);
+        await loadActiveSchedule();
+    })
+    .listen(PORT);
