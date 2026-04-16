@@ -1,6 +1,16 @@
-import Expo, { type ExpoPushTicket } from "expo-server-sdk";
+import { Expo, type ExpoPushMessage, type ExpoPushTicket } from "expo-server-sdk";
+import { getConfig } from "../config.js";
 
-const expo = new Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN });
+let expo: Expo | null = null;
+
+function getExpoClient(): Expo {
+    if (!expo) {
+        const config = getConfig();
+        expo = new Expo({ accessToken: config.EXPO_ACCESS_TOKEN });
+    }
+
+    return expo;
+}
 
 export interface NotificationPayload {
     title: string;
@@ -8,25 +18,28 @@ export interface NotificationPayload {
     data?: Record<string, unknown>;
 }
 
-export async function sendBatchNotifications(
-    tokens: string[],
-    payload: NotificationPayload
-): Promise<ExpoPushTicket[]> {
-    const validTokens = tokens.filter(Expo.isExpoPushToken);
-    if (validTokens.length === 0) return [];
-
-    const messages = validTokens.map((to) => ({
+export function buildPushMessages(tokens: string[], payload: NotificationPayload): ExpoPushMessage[] {
+    return tokens.filter(Expo.isExpoPushToken).map((to) => ({
         to,
         ...payload,
         sound: "default" as const,
         channelId: "skanida-default",
     }));
+}
+
+export async function sendBatchNotifications(
+    tokens: string[],
+    payload: NotificationPayload
+): Promise<ExpoPushTicket[]> {
+    const messages = buildPushMessages(tokens, payload);
+    if (messages.length === 0) return [];
 
     const tickets: ExpoPushTicket[] = [];
+    const expoClient = getExpoClient();
 
-    for (const chunk of expo.chunkPushNotifications(messages)) {
+    for (const chunk of expoClient.chunkPushNotifications(messages)) {
         try {
-            tickets.push(...(await expo.sendPushNotificationsAsync(chunk)));
+            tickets.push(...(await expoClient.sendPushNotificationsAsync(chunk)));
         } catch (error) {
             console.error("Push notification error:", error);
         }

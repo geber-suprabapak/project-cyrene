@@ -1,16 +1,24 @@
-import { getActiveSchedule, fetchTokens, type JadwalAbsensi } from "./supabase";
-import { sendBatchNotifications } from "./expo-push";
+import { getConfig, type AppConfig } from "../config.js";
+import { sendBatchNotifications } from "./expo-push.js";
+import { getActiveSchedule, fetchTokens, type JadwalAbsensi } from "./supabase.js";
 
-const TIMEZONE = process.env.TZ || "Asia/Jakarta";
 const DAY_NAMES = ["minggu", "senin", "selasa", "rabu", "kamis", "jumat", "sabtu"];
+const MS_PER_MINUTE = 60_000;
 
 let activeSchedule: JadwalAbsensi | null = null;
-const scheduledJobs = new Map<string, Timer>();
-let dailyTimer: Timer | null = null;
+const scheduledJobs = new Map<string, ReturnType<typeof setTimeout>>();
+let dailyTimer: ReturnType<typeof setTimeout> | null = null;
 
-function getNow(): Date {
+export interface ReminderPlan {
+    id: string;
+    delayMs: number;
+    title: string;
+    body: string;
+}
+
+export function getNow(timeZone: string): Date {
     const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone: TIMEZONE,
+        timeZone,
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
@@ -24,15 +32,14 @@ function getNow(): Date {
     return new Date(+get("year"), +get("month") - 1, +get("day"), +get("hour"), +get("minute"), +get("second"));
 }
 
-function parseTimeToday(timeStr: string): Date {
+function parseTimeToday(timeStr: string, now: Date): Date {
     const [h, m, s] = timeStr.split(":").map(Number);
-    const now = getNow();
-    now.setHours(h, m, s || 0, 0);
-    return now;
+    const target = new Date(now);
+    target.setHours(h, m, s || 0, 0);
+    return target;
 }
 
-function msUntilMidnight(): number {
-    const now = getNow();
+function msUntilMidnight(now: Date): number {
     const midnight = new Date(now);
     midnight.setDate(midnight.getDate() + 1);
     midnight.setHours(0, 0, 0, 0);
@@ -69,43 +76,52 @@ const REMINDERS: {
     },
 ];
 
-function scheduleReminders() {
-    if (!activeSchedule) return;
-    const schedule = activeSchedule;
-
-    for (const { id, timeKey, offsetMin, title, bodyFn } of REMINDERS) {
-        const target = parseTimeToday(schedule[timeKey]);
+export function getReminderPlans(schedule: JadwalAbsensi, now: Date): ReminderPlan[] {
+    return REMINDERS.flatMap(({ id, timeKey, offsetMin, title, bodyFn }) => {
+        const target = parseTimeToday(schedule[timeKey], now);
         target.setMinutes(target.getMinutes() + offsetMin);
 
-        const delay = target.getTime() - getNow().getTime();
-        if (delay < 0) {
+        const delayMs = target.getTime() - now.getTime();
+        if (delayMs < 0) return [];
+
+        return [{ id, delayMs, title, body: bodyFn(schedule) }];
+    });
+}
+
+function scheduleReminders(config: AppConfig) {
+    if (!activeSchedule) return;
+    const schedule = activeSchedule;
+    const plans = getReminderPlans(schedule, getNow(config.TZ));
+
+    for (const { id, delayMs, title, body } of plans) {
+        if (delayMs < 0) {
             console.log(`Reminder ${id} already passed`);
             continue;
         }
 
-        console.log(`Scheduling ${id} in ${Math.round(delay / 60000)}min`);
+        console.log(`Scheduling ${id} in ${Math.round(delayMs / MS_PER_MINUTE)}min`);
         scheduledJobs.set(
             id,
             setTimeout(async () => {
                 try {
                     const tokens = await fetchTokens();
-                    if (tokens.length > 0) await sendBatchNotifications(tokens, { title, body: bodyFn(schedule) });
+                    if (tokens.length > 0) await sendBatchNotifications(tokens, { title, body });
                 } catch (error) {
                     console.error(`Reminder ${id} failed:`, error);
                 }
                 scheduledJobs.delete(id);
-            }, delay)
+            }, delayMs)
         );
     }
 }
 
-function scheduleDailyReschedule() {
+function scheduleDailyReschedule(config: AppConfig) {
     if (dailyTimer) clearTimeout(dailyTimer);
-    const ms = msUntilMidnight();
-    console.log(`Next reschedule in ${Math.round(ms / 60000)}min`);
+    const ms = msUntilMidnight(getNow(config.TZ));
+    console.log(`Next reschedule in ${Math.round(ms / MS_PER_MINUTE)}min`);
     dailyTimer = setTimeout(async () => {
         clearScheduledJobs();
-        await loadActiveSchedule();
+        await loadActiveSchedule(config);
     }, ms);
 }
 
@@ -114,9 +130,9 @@ function clearScheduledJobs() {
     scheduledJobs.clear();
 }
 
-export async function loadActiveSchedule() {
-    const today = DAY_NAMES[getNow().getDay()];
-    console.log(`Loading schedule for ${today} (${TIMEZONE})`);
+export async function loadActiveSchedule(config: AppConfig = getConfig()) {
+    const today = DAY_NAMES[getNow(config.TZ).getDay()];
+    console.log(`Loading schedule for ${today} (${config.TZ})`);
 
     activeSchedule = await getActiveSchedule(today);
 
@@ -127,15 +143,23 @@ export async function loadActiveSchedule() {
             batas: activeSchedule.selesai_masuk,
             pulang: activeSchedule.mulai_pulang,
         });
-        scheduleReminders();
+        scheduleReminders(config);
     } else {
         console.log(`No schedule for ${today}`);
     }
 
-    scheduleDailyReschedule();
+    scheduleDailyReschedule(config);
 }
 
-export async function reloadSchedule() {
+export async function reloadSchedule(config: AppConfig = getConfig()) {
     clearScheduledJobs();
-    await loadActiveSchedule();
+    await loadActiveSchedule(config);
+}
+
+export function stopScheduler() {
+    clearScheduledJobs();
+    if (dailyTimer) {
+        clearTimeout(dailyTimer);
+        dailyTimer = null;
+    }
 }
