@@ -94,11 +94,6 @@ function scheduleReminders(config: AppConfig) {
     const plans = getReminderPlans(schedule, getNow(config.TZ));
 
     for (const { id, delayMs, title, body } of plans) {
-        if (delayMs < 0) {
-            console.log(`Reminder ${id} already passed`);
-            continue;
-        }
-
         console.log(`Scheduling ${id} in ${Math.round(delayMs / MS_PER_MINUTE)}min`);
         scheduledJobs.set(
             id,

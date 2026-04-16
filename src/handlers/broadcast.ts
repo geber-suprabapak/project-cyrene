@@ -43,7 +43,7 @@ export function registerBroadcastRoutes(app: Hono<AppEnv>): void {
             return c.json({ success: true, sent, failed: tickets.length - sent, total_tokens: tokens.length });
         } catch (error) {
             console.error("Broadcast error:", error);
-            return c.json({ success: false, error: String(error), sent: 0 }, 500);
+            return c.json({ success: false, error: "Internal server error", sent: 0 }, 500);
         }
     });
 }

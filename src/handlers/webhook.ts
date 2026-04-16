@@ -124,7 +124,7 @@ export function registerWebhookRoutes(app: Hono<AppEnv>): void {
             return c.json({ success: true });
         } catch (error) {
             console.error("Webhook error:", error);
-            return c.json({ success: false, error: String(error) }, 500);
+            return c.json({ success: false, error: "Internal server error" }, 500);
         }
     });
 }
