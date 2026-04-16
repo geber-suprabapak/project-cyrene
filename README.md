@@ -186,6 +186,29 @@ pnpm docker:logs
 pnpm docker:down
 ```
 
+## CI/CD
+
+GitHub Actions builds and tests with npm, then builds the Docker image and publishes it to GitHub Container Registry.
+
+Image:
+
+```text
+ghcr.io/lunaradevs/project-cyrene
+```
+
+Triggers:
+
+- Pull requests to `main`: run CI and Docker build without pushing.
+- Pushes to `main`: push `latest`, `main`, and `sha-<commit>` tags.
+- Git tags like `v1.2.3`: push semantic version tags.
+- Manual `workflow_dispatch`: build and push from the selected branch.
+
+Pull the latest image:
+
+```bash
+docker pull ghcr.io/lunaradevs/project-cyrene:latest
+```
+
 ## Project Structure
 
 ```text
