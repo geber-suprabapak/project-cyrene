@@ -1,24 +1,43 @@
-import { Elysia, t } from "elysia";
-import { fetchTokens } from "../services/supabase";
-import { sendBatchNotifications, type NotificationPayload } from "../services/expo-push";
-import { reloadSchedule } from "../services/scheduler";
+import { zValidator } from "@hono/zod-validator";
+import { z } from "zod";
+import { fetchTokens } from "../services/supabase.js";
+import { sendBatchNotifications, type NotificationPayload } from "../services/expo-push.js";
+import { reloadSchedule } from "../services/scheduler.js";
+import type { AppEnv } from "../types.js";
+import type { Hono } from "hono";
 
-const WebhookSchema = t.Object({
-    type: t.Union([t.Literal("INSERT"), t.Literal("UPDATE"), t.Literal("DELETE")]),
-    table: t.String(),
-    schema: t.Optional(t.String()),
-    record: t.Any(),
-    old_record: t.Optional(t.Any()),
+const DatabaseRecordSchema = z.record(z.string(), z.unknown());
+
+const WebhookSchema = z.object({
+    type: z.enum(["INSERT", "UPDATE", "DELETE"]),
+    table: z.string().min(1),
+    schema: z.string().optional(),
+    record: DatabaseRecordSchema,
+    old_record: DatabaseRecordSchema.nullable().optional(),
 });
 
-async function notifyUser(userId: string, notification: NotificationPayload) {
+type DatabaseRecord = z.infer<typeof DatabaseRecordSchema>;
+type WebhookPayload = z.infer<typeof WebhookSchema>;
+
+const validateWebhookBody = zValidator("json", WebhookSchema, (result, c) => {
+    if (!result.success) {
+        return c.json({ success: false, error: "Invalid request body" }, 400);
+    }
+});
+
+async function notifyUser(userId: unknown, notification: NotificationPayload) {
+    if (typeof userId !== "string" || userId.length === 0) {
+        console.warn("Notification skipped: missing user_id");
+        return;
+    }
+
     console.log("Notify user:", { userId, title: notification.title, type: notification.data?.type });
     const tokens = await fetchTokens([userId]);
     console.log("Notify tokens:", { userId, tokenCount: tokens.length });
     if (tokens.length > 0) await sendBatchNotifications(tokens, notification);
 }
 
-async function handlePerizinan(type: string, record: any, oldRecord: any) {
+async function handlePerizinan(type: WebhookPayload["type"], record: DatabaseRecord, oldRecord?: DatabaseRecord | null) {
     if (type === "INSERT" && record.approval_status === "pending") {
         await notifyUser(record.user_id, {
             title: "📋 Perizinan Diterima",
@@ -44,7 +63,7 @@ async function handlePerizinan(type: string, record: any, oldRecord: any) {
     }
 }
 
-async function handleAbsences(type: string, record: any) {
+async function handleAbsences(type: WebhookPayload["type"], record: DatabaseRecord) {
     if (type !== "INSERT") return;
 
     console.log("Absence insert:", {
@@ -66,7 +85,8 @@ async function handleAbsences(type: string, record: any) {
         },
     };
 
-    const notification = notifications[record.status];
+    const status = typeof record.status === "string" ? record.status : "";
+    const notification = notifications[status];
     if (!notification) {
         console.warn("Absence status not mapped to notification:", { status: record?.status });
         return;
@@ -75,9 +95,9 @@ async function handleAbsences(type: string, record: any) {
     await notifyUser(record.user_id, notification);
 }
 
-export const webhookHandler = new Elysia({ name: "webhook" }).post(
-    "/webhook",
-    async ({ body, set }) => {
+export function registerWebhookRoutes(app: Hono<AppEnv>): void {
+    app.post("/webhook", validateWebhookBody, async (c) => {
+        const body = c.req.valid("json");
         console.log("Webhook received:", {
             type: body.type,
             table: body.table,
@@ -95,18 +115,16 @@ export const webhookHandler = new Elysia({ name: "webhook" }).post(
                     break;
                 case "jadwal_absensi":
                     console.log("Webhook dispatch: jadwal_absensi");
-                    await reloadSchedule();
+                    await reloadSchedule(c.get("config"));
                     break;
                 default:
                     console.warn("Webhook table not handled:", { table: body.table });
                     break;
             }
-            return { success: true };
+            return c.json({ success: true });
         } catch (error) {
             console.error("Webhook error:", error);
-            set.status = 500;
-            return { success: false, error: String(error) };
+            return c.json({ success: false, error: "Internal server error" }, 500);
         }
-    },
-    { body: WebhookSchema }
-);
+    });
+}

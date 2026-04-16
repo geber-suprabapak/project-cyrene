@@ -1,39 +1,34 @@
 # ================================
 # Cyrene Notification API
-# Multi-stage Dockerfile for Bun + Elysia
+# Multi-stage Dockerfile for Node + Hono
+# Docker/CI intentionally use npm ci.
 # ================================
 
-# Stage 1: Install dependencies
-FROM oven/bun:1 AS deps
+FROM node:24-slim AS builder
 WORKDIR /app
 
-# Copy package files
-COPY package.json bun.lock* ./
+COPY package.json package-lock.json ./
+RUN npm ci
 
-# Install dependencies
-RUN bun install --frozen-lockfile
+COPY tsconfig.json tsconfig.build.json ./
+COPY src ./src
+RUN npm run build
+RUN npm prune --omit=dev
 
-# ================================
-# Stage 2: Production image
-FROM oven/bun:1 AS runner
+FROM node:24-slim AS runner
 WORKDIR /app
 
-# Set environment
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/dist ./dist
+COPY --from=builder --chown=node:node /app/package.json ./package.json
 
-# Copy source code
-COPY . .
-
-# Expose port
+USER node
 EXPOSE 3000
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD bun -e "fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+    CMD node -e "fetch('http://127.0.0.1:3000/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-# Start the application
-CMD ["bun", "run", "src/index.ts"]
+CMD ["node", "dist/index.js"]
