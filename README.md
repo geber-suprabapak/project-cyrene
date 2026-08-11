@@ -126,20 +126,26 @@ pnpm install
 Create `.env` from `.env.example`:
 
 ```env
-SUPABASE_URL=https://your-project.supabase.co
+CYRENE_IMAGE=ghcr.io/geber-suprabapak/project-cyrene:latest
+BACKEND_NETWORK=skanida-backend
+NODE_ENV=production
+SUPABASE_URL=http://supabase-kong:8000
 SUPABASE_SERVICE_KEY=your-service-role-key
 API_BEARER_TOKEN=change-me-shared-secret
-EXPO_ACCESS_TOKEN=optional-for-push-security
+EXPO_ACCESS_TOKEN=
 PORT=3000
 TZ=Asia/Jakarta
 ```
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `SUPABASE_URL` | Yes | Supabase project URL |
+| `CYRENE_IMAGE` | Compose | GHCR image and immutable deployment tag |
+| `BACKEND_NETWORK` | Compose | External Docker network shared with Supabase |
+| `NODE_ENV` | No | Set to `production` in production |
+| `SUPABASE_URL` | Yes | Supabase API gateway/Kong URL; use its internal service URL on-prem |
 | `SUPABASE_SERVICE_KEY` | Yes | Supabase service role key |
 | `API_BEARER_TOKEN` | Yes | Shared bearer token for `/webhook` and `/broadcast` |
-| `EXPO_ACCESS_TOKEN` | No | Expo push access token |
+| `EXPO_ACCESS_TOKEN` | No | Required only when Expo Push enhanced security is enabled |
 | `PORT` | No | Defaults to `3000` |
 | `TZ` | No | Defaults to `Asia/Jakarta` |
 
@@ -163,24 +169,29 @@ Configure Supabase Database Webhooks with the bearer token header.
 
 | Table | Events | URL |
 | --- | --- | --- |
-| `perizinan` | `INSERT`, `UPDATE` | `https://your-domain/webhook` |
-| `absences` | `INSERT` | `https://your-domain/webhook` |
-| `jadwal_absensi` | `INSERT`, `UPDATE` | `https://your-domain/webhook` |
+| `perizinan` | `INSERT`, `UPDATE` | `http://cyrene-api:3000/webhook` |
+| `absences` | `INSERT` | `http://cyrene-api:3000/webhook` |
+| `jadwal_absensi` | `INSERT`, `UPDATE` | `http://cyrene-api:3000/webhook` |
+
+The Supabase container that executes Database Webhooks must also join
+`BACKEND_NETWORK`. Keep Cyrene internal; no public reverse proxy is required
+when Supabase runs on the same Docker host.
 
 ## Docker Deployment
 
-Docker uses npm intentionally:
+CI builds the image with npm and publishes it to GHCR. Portainer only pulls the
+prebuilt image:
 
 ```bash
-npm ci
-npm run build
-docker compose up -d --build
+docker network create skanida-backend
+docker compose pull
+docker compose up -d
 ```
 
 Convenience scripts:
 
 ```bash
-pnpm docker:build
+pnpm docker:pull
 pnpm docker:up
 pnpm docker:logs
 pnpm docker:down
@@ -193,7 +204,7 @@ GitHub Actions builds and tests with npm, then builds the Docker image and publi
 Image:
 
 ```text
-ghcr.io/lunaradevs/project-cyrene
+ghcr.io/geber-suprabapak/project-cyrene
 ```
 
 Triggers:
@@ -206,7 +217,7 @@ Triggers:
 Pull the latest image:
 
 ```bash
-docker pull ghcr.io/lunaradevs/project-cyrene:latest
+docker pull ghcr.io/geber-suprabapak/project-cyrene:latest
 ```
 
 ## Project Structure

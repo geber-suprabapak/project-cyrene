@@ -74,6 +74,15 @@ describe("Hono app", () => {
         expect(invalidTokenResponse.status).toBe(401);
     });
 
+    it("rejects the configured token when it uses a non-Bearer authorization scheme", async () => {
+        const response = await createApp(config).request("/broadcast", {
+            method: "POST",
+            headers: { Authorization: `Basic ${config.API_BEARER_TOKEN}` },
+        });
+
+        expect(response.status).toBe(401);
+    });
+
     it("returns 400 for invalid request bodies", async () => {
         const invalidShape = await requestJson("/broadcast", {});
         const invalidJson = await createApp(config).request("/broadcast", {

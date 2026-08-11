@@ -3,17 +3,13 @@
 # ================================
 
 services:
-  # --------------------------------
-  # Main API Service
-  # --------------------------------
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ${CYRENE_IMAGE:-ghcr.io/geber-suprabapak/project-cyrene:latest}
+    pull_policy: always
     container_name: cyrene-api
     restart: unless-stopped
-    ports:
-      - "${PORT:-3000}:3000"
+    expose:
+      - "3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -31,7 +27,7 @@ services:
       retries: 3
       start_period: 10s
     networks:
-      - cyrene-network
+      - backend
     logging:
       driver: "json-file"
       options:
@@ -39,5 +35,6 @@ services:
         max-file: "3"
 
 networks:
-  cyrene-network:
-    driver: bridge
+  backend:
+    external: true
+    name: ${BACKEND_NETWORK:-skanida-backend}

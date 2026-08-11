@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type MiddlewareHandler } from "hono";
 import { bearerAuth } from "hono/bearer-auth";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
@@ -36,7 +36,17 @@ export function createApp(config: AppConfig = getConfig()): Hono<AppEnv> {
     app.get("/health", (c) => c.json({ status: "ok", timestamp: new Date().toISOString() }));
 
     const auth = bearerAuth({ token: config.API_BEARER_TOKEN });
+    const requireBearerScheme: MiddlewareHandler<AppEnv> = async (c, next) => {
+        const authorization = c.req.header("Authorization");
+        if (authorization && !authorization.toLowerCase().startsWith("bearer ")) {
+            return c.json({ success: false, error: "Unauthorized" }, 401);
+        }
+
+        await next();
+    };
+    app.use("/webhook", requireBearerScheme);
     app.use("/webhook", auth);
+    app.use("/broadcast", requireBearerScheme);
     app.use("/broadcast", auth);
 
     registerWebhookRoutes(app);
