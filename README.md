@@ -1,8 +1,12 @@
-# Cyrene Notification API
+# Cyrene Notification API (DEPRECATED / DECOMMISSIONED)
 
-Sistem push notification untuk aplikasi absensi. API menerima webhook dari Supabase, mengirim notifikasi via Expo Push, dan menjadwalkan reminder absensi otomatis.
+> **⚠️ DEPRECATED & DECOMMISSIONED (ADR-0002 & ISS-09)**:  
+> `project-cyrene` has been decommissioned from the active deployment topology. Notification delivery, push notifications, and reminder scheduling have been absorbed directly into `project-astra` via its internal transactional notification outbox worker (`project-astra/src/modules/notifications/` and `bun run worker:notifications`).  
+> This repository is retained as an archive and reference only. Do NOT deploy this service in production environments.
 
-**Stack:** Node.js 24 + Hono + Zod + Expo Server SDK + Supabase
+Sistem push notification legacy untuk aplikasi absensi. API menerima webhook dari Supabase, mengirim notifikasi via Expo Push, dan menjadwalkan reminder absensi otomatis (sekarang digantikan oleh Astra Notification Outbox Worker).
+
+**Stack:** Node.js 24 + Hono + Zod + Expo Server SDK + Supabase (Legacy)
 
 ## Cara Kerja
 

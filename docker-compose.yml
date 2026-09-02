@@ -1,6 +1,7 @@
-# ================================
-# Docker Compose - Cyrene Notification API
-# ================================
+# =============================================================================
+# Docker Compose - Cyrene Notification API (DEPRECATED / DECOMMISSIONED)
+# NOTE: Decommissioned per ADR-0002 & ISS-09. Superseded by project-astra outbox worker.
+# =============================================================================
 
 services:
   api:
