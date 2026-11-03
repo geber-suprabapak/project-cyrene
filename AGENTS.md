@@ -1,4 +1,11 @@
 <!-- repo-map:start -->
+## Development and verification
+
+This is a pnpm-managed TypeScript service. Use `pnpm dev` for local development,
+`pnpm build` for compilation, `pnpm typecheck` and `pnpm lint` for static checks,
+and `pnpm test` for the Vitest suite. Use the scripts in `package.json` as the
+source of truth; Docker Compose commands change local runtime state.
+
 ## Codebase semantic map
 
 Start repository-wide orientation at `docs/codebase-map/README.md`.
