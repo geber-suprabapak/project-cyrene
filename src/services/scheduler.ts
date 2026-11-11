@@ -16,7 +16,7 @@ export interface ReminderPlan {
     body: string;
 }
 
-export function getNow(timeZone: string): Date {
+export function getNow(timeZone: string = getConfig().TZ): Date {
     const parts = new Intl.DateTimeFormat("en-US", {
         timeZone,
         year: "numeric",
@@ -25,18 +25,37 @@ export function getNow(timeZone: string): Date {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
-        hour12: false,
+        hourCycle: "h23",
     }).formatToParts(new Date());
 
-    const get = (type: string) => parts.find((p) => p.type === type)!.value;
-    return new Date(+get("year"), +get("month") - 1, +get("day"), +get("hour"), +get("minute"), +get("second"));
+    const get = (type: Intl.DateTimeFormatPartTypes) =>
+        Number(parts.find((p) => p.type === type)?.value ?? 0);
+    return new Date(
+        get("year"),
+        get("month") - 1,
+        get("day"),
+        get("hour") % 24,
+        get("minute"),
+        get("second"),
+        0
+    );
+}
+
+export function getScheduledTime(timeStr: string, now: Date = getNow()): Date {
+    const [h = 0, m = 0, s = 0] = timeStr.split(":").map(Number);
+    return new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        Number.isFinite(h) ? h : 0,
+        Number.isFinite(m) ? m : 0,
+        Number.isFinite(s) ? s : 0,
+        0
+    );
 }
 
 function parseTimeToday(timeStr: string, now: Date): Date {
-    const [h, m, s] = timeStr.split(":").map(Number);
-    const target = new Date(now);
-    target.setHours(h, m, s || 0, 0);
-    return target;
+    return getScheduledTime(timeStr, now);
 }
 
 function msUntilMidnight(now: Date): number {
@@ -90,23 +109,32 @@ export function getReminderPlans(schedule: JadwalAbsensi, now: Date): ReminderPl
 
 function scheduleReminders(config: AppConfig) {
     if (!activeSchedule) return;
-    const schedule = activeSchedule;
-    const plans = getReminderPlans(schedule, getNow(config.TZ));
+    try {
+        const schedule = activeSchedule;
+        const now = getNow(config.TZ);
+        const plans = getReminderPlans(schedule, now);
 
-    for (const { id, delayMs, title, body } of plans) {
-        console.log(`Scheduling ${id} in ${Math.round(delayMs / MS_PER_MINUTE)}min`);
-        scheduledJobs.set(
-            id,
-            setTimeout(async () => {
-                try {
-                    const tokens = await fetchTokens();
-                    if (tokens.length > 0) await sendBatchNotifications(tokens, { title, body });
-                } catch (error) {
-                    console.error(`Reminder ${id} failed:`, error);
-                }
-                scheduledJobs.delete(id);
-            }, delayMs)
-        );
+        for (const { id, delayMs, title, body } of plans) {
+            const existing = scheduledJobs.get(id);
+            if (existing) clearTimeout(existing);
+
+            console.log(`Scheduling ${id} in ${Math.round(delayMs / MS_PER_MINUTE)}min`);
+            scheduledJobs.set(
+                id,
+                setTimeout(async () => {
+                    try {
+                        const tokens = await fetchTokens();
+                        if (tokens.length > 0) await sendBatchNotifications(tokens, { title, body });
+                    } catch (error) {
+                        console.error(`Reminder ${id} failed:`, error);
+                    } finally {
+                        scheduledJobs.delete(id);
+                    }
+                }, delayMs)
+            );
+        }
+    } catch (error) {
+        console.error("Failed to schedule reminders:", error);
     }
 }
 
@@ -116,7 +144,11 @@ function scheduleDailyReschedule(config: AppConfig) {
     console.log(`Next reschedule in ${Math.round(ms / MS_PER_MINUTE)}min`);
     dailyTimer = setTimeout(async () => {
         clearScheduledJobs();
-        await loadActiveSchedule(config);
+        try {
+            await loadActiveSchedule(config);
+        } catch (error) {
+            console.error("Daily reschedule failed:", error);
+        }
     }, ms);
 }
 

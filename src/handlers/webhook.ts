@@ -72,21 +72,27 @@ async function handleAbsences(type: WebhookPayload["type"], record: DatabaseReco
         status: record?.status,
     });
 
-    const notifications: Record<string, NotificationPayload> = {
-        Hadir: {
+    let notification: NotificationPayload | undefined;
+    if (record.status === "Hadir") {
+        notification = {
             title: "🌅 Absen Masuk Berhasil",
             body: "Selamat pagi! Absen masuk Anda berhasil dicatat",
             data: { type: "absen_masuk", id: record.id },
-        },
-        Pulang: {
+        };
+    } else if (record.status === "Terlambat") {
+        notification = {
+            title: "Absensi Masuk (Terlambat)",
+            body: "Absensi masuk Anda tercatat terlambat. Terima kasih!",
+            data: { type: "absence_checkin", id: record.id },
+        };
+    } else if (record.status === "Pulang") {
+        notification = {
             title: "🌇 Absen Pulang Berhasil",
             body: "Absen pulang berhasil dicatat. Selamat beristirahat!",
             data: { type: "absen_pulang", id: record.id },
-        },
-    };
+        };
+    }
 
-    const status = typeof record.status === "string" ? record.status : "";
-    const notification = notifications[status];
     if (!notification) {
         console.warn("Absence status not mapped to notification:", { status: record?.status });
         return;
